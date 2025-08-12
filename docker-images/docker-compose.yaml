@@ -1,0 +1,155 @@
+volumes:
+  postgres:
+  redis:
+  rabbitmq:
+  minio:
+  mailhog:
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    hostname: postgres
+    healthcheck:
+      test: pg_isready -U postgres -d keycloak
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5438:5432"
+    volumes:
+      - type: volume
+        source: postgres
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: ./docker-entrypoint-initdb.d
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        consistency: consistent
+
+  rabbitmq:
+    image: rabbitmq:management-alpine
+    hostname: rabbitmq
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: rabbitmq
+        target: /var/lib/rabbitmq
+      - type: bind
+        source: ./rabbitmq/enabled_plugins
+        target: /etc/rabbitmq/enabled_plugins
+        read_only: false
+        consistency: consistent
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  redis:
+    image: redis:alpine
+    hostname: redis
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: redis
+        target: /data
+    ports:
+      - "6380:6379"
+
+  minio:
+    image: quay.io/minio/minio:latest
+    hostname: minio
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: minio
+        target: /data
+    environment:
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=123456123456123456
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+
+  mailhog:
+    image: cd2team/mailhog
+    restart: unless-stopped
+    hostname: mailhog
+    volumes:
+      - type: volume
+        source: mailhog
+        target: /maildir
+    environment:
+      - MH_HOSTNAME=mailhog
+      - MH_STORAGE=maildir
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.6
+    restart: unless-stopped
+    hostname: keycloak
+    depends_on:
+      - postgres
+      - mailhog
+    ports:
+      - "9080:8080"
+      - "8787:8787"
+    healthcheck:
+      test: curl -fs http://localhost:8080/health
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - type: bind
+        source: ./keycloak/realm-export.json
+        target: /opt/keycloak/data/import/realm-export.json
+        read_only: true
+        consistency: consistent
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: 123456
+      KC_HTTP_HOST: 0.0.0.0
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: false
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_DB_POOL_MIN_SIZE: 0
+      KC_DB_POOL_MAX_SIZE: 10
+      KC_DB_POOL_INITIAL_SIZE: 1
+      KC_LOG_CONSOLE_COLOR: true
+      KC_LOG_LEVEL: INFO
+      KC_PROXY: edge
+      KC_CACHE: local
+      DEBUG: true
+      DEBUG_PORT: '*:8787'
+      KC_FEATURES: "account-api,account3,authorization,ciba,client-policies,impersonation,par,step-up-authentication,web-authn"
+    command: "start-dev --import-realm "
+
+
+#  influxdb:
+#    image: influxdb:2.7
+#    container_name: influxdb
+#    environment:
+#      INFLUXDB_ADMIN_USER: demo
+#      INFLUXDB_ADMIN_PASSWORD: demo
+#      INFLUXDB_DB: demo
+#      INFLUXDB_REPORTING_DISABLED: "true"
+#      INFLUXDB_HTTP_AUTH_ENABLED: "true"
+#    ports:
+#      - "8086:8086"
+#    volumes:
+#      - influxdb_data:/var/lib/influxdb2
+#    networks:
+#      - my_network
+
+
