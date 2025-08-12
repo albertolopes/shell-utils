@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: na-palma
+    volumes:
+      - /home/beto/Área\ de\ trabalho/Docs/docker\ imagens/postgresql/data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+
+volumes:
+  postgres_data:
+    driver: local
